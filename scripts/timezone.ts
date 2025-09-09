@@ -1,0 +1,41 @@
+import { execSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import moment from 'moment-timezone';
+
+const zones = moment.tz.names().sort((a, b) => a.localeCompare(b));
+
+const OUTPUT_PATH = "src/generated/timezones.ts";
+
+const unformattedContent =
+  `/**\n` +
+  ` * Generated from moment.tz.names() on ${new Date().toISOString()}\n` +
+  ` * Do not edit by hand. Re-run the generator when tzdb updates.\n` +
+	` */\n\n` +
+  `export const ALL_TIMEZONES = ${JSON.stringify(zones, null, 2)} as const;\n` +
+  `export type TimeZone = typeof ALL_TIMEZONES[number];\n`;
+
+// Create a temporary file to format with Biome
+const tempFile = join(tmpdir(), `timezones-${Date.now()}.ts`);
+writeFileSync(tempFile, unformattedContent);
+
+// Format with Biome
+try {
+  execSync(`bunx @biomejs/biome format --write "${tempFile}"`, {
+    stdio: 'inherit',
+  });
+  const formattedContent = require('node:fs').readFileSync(tempFile, 'utf-8');
+  writeFileSync(OUTPUT_PATH, formattedContent);
+
+  // Clean up temp file
+  require('node:fs').unlinkSync(tempFile);
+
+  console.log('✅ Generated and formatted src/timezones.ts');
+} catch (error) {
+  console.error('❌ Error formatting with Biome:', error);
+  // Fallback to unformatted content
+  writeFileSync(OUTPUT_PATH, unformattedContent);
+  console.log('⚠️  Generated src/timezones.ts without formatting');
+}
