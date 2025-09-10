@@ -3,5 +3,6 @@
   "oxc.enable": false,
   "prettier.enable": false,
   "eslint.enable": false,
-  "eslint.format.enable": false
+  "eslint.format.enable": false,
+  "oxc.typeAware": false
 }
