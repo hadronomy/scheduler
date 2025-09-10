@@ -1,3 +1,4 @@
+#!/usr/bin/env bun run
 import { FileSystem, HttpClient, Path } from '@effect/platform';
 import { BunFileSystem, BunPath, BunRuntime } from '@effect/platform-bun';
 import { NodeHttpClient } from '@effect/platform-node';
