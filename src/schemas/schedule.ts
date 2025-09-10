@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ALL_TIMEZONES } from '../generated/timezones';
+import { ALL_TIMEZONES } from '~/generated/timezones';
 
 // ISO helpers
 const IsoDate = z.iso.date();

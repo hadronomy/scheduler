@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { IanaMediaType } from '../generated/iana-media-types';
+import type { IanaMediaType } from '~/generated/iana-media-types';
 
 export class ScheduleOCR extends Effect.Service<ScheduleOCR>()('scheduleocr', {
   effect: Effect.gen(function* () {

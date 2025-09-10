@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Logger } from 'effect';
-import { AppConfig, ConfigLive } from './config';
+import { AppConfig, ConfigLive } from '~/config';
 
 const program = Effect.gen(function* () {
   const cfg = yield* AppConfig;
