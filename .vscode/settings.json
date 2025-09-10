@@ -1,0 +1,7 @@
+{
+  "biome.enabled": true,
+  "oxc.enable": false,
+  "prettier.enable": false,
+  "eslint.enable": false,
+  "eslint.format.enable": false
+}

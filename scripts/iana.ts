@@ -127,7 +127,7 @@ const program = Effect.gen(function* () {
     Object.values(perType).flatMap((x) => x ?? []),
   );
 
-  const out = HEADER + parts.join('\n') + '\n' + combined;
+  const out = `${HEADER + parts.join('\n')}\n${combined}`;
 
   // Write output
   const path = yield* Path.Path;
