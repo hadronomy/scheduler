@@ -4,5 +4,7 @@
   "prettier.enable": false,
   "eslint.enable": false,
   "eslint.format.enable": false,
-  "oxc.typeAware": false
+  "oxc.typeAware": false,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "biomejs.biome"
 }

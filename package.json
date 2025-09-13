@@ -18,6 +18,8 @@
     "@effect/platform": "^0.90.7",
     "@effect/platform-bun": "^0.79.0",
     "@effect/platform-node": "^0.96.1",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
+    "ai": "^5.0.39",
     "effect": "^3.17.13",
     "moment-timezone": "^0.6.0",
     "tsdown": "^0.15.0",
