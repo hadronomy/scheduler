@@ -57,16 +57,21 @@ function urlWithDefault(name: string, def: URL) {
 type InferConfig<T> = T extends Config.Config<infer A> ? A : never;
 export type AppEnv = InferConfig<typeof AppEnvConfig>;
 
-export class AppConfig extends Context.Tag('AppConfig')<AppConfig, AppEnv>() {}
+export namespace AppConfig {
+  export class AppConfig extends Context.Tag('AppConfig')<
+    AppConfig,
+    AppEnv
+  >() {}
 
-const loadConfig = Effect.gen(function* () {
-  yield* Effect.log('Initialized configuration')
-  const env = yield* AppEnvConfig;
-  return env;
-});
+  const loadConfig = Effect.gen(function* () {
+    yield* Effect.log('Initialized configuration');
+    const env = yield* AppEnvConfig;
+    return env;
+  });
 
-export const ConfigLive = Layer.effect(AppConfig, loadConfig);
+  export const layer = Layer.effect(AppConfig, loadConfig);
 
-export const getConfig = Effect.flatMap(AppConfig, (cfg) =>
-  Effect.succeed(cfg),
-);
+  export const getConfig = Effect.flatMap(AppConfig, (cfg) =>
+    Effect.succeed(cfg),
+  );
+}

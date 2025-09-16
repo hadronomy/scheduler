@@ -6,7 +6,7 @@ import { AppConfig } from '~/config';
 
 export class AIProviders extends Effect.Service<AIProviders>()('AIProvider', {
   effect: Effect.gen(function* () {
-    const cfg = yield* AppConfig;
+    const cfg = yield* AppConfig.AppConfig;
     yield* Effect.log('Initialized OpenRouter AIProvider');
     const openrouter = createOpenRouter({
       apiKey: Redacted.value(cfg.OPENROUTER_API_KEY),

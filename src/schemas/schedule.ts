@@ -30,268 +30,178 @@ export const Weekday = z
   .describe('Weekday code (ISO 8601): MO TU WE TH FR SA SU');
 export type Weekday = z.infer<typeof Weekday>;
 
-export const WeekdayPosition = z
-  .enum(['1', '2', '3', '4', 'last'])
-  .describe('Monthly position: 1, 2, 3, 4, or last');
-export type WeekdayPosition = z.infer<typeof WeekdayPosition>;
-
 /**
- * Recurrence: unify simple and advanced under one discriminator "kind"
+ * Recurrence rule (RRULE-like, simplified)
  */
-const RecurrenceSimpleWeekly = z
+export const RecurrenceRule = z
   .object({
-    kind: z.literal('simpleWeekly').describe('Simple weekly recurrence'),
-    byDays: z
+    freq: z
+      .enum(['daily', 'weekly', 'monthly', 'yearly'])
+      .describe('Base frequency'),
+    interval: z
+      .number()
+      .int()
+      .positive()
+      .default(1)
+      .optional()
+      .describe('Step size (e.g., every 2 weeks)'),
+    byWeekday: z
       .array(Weekday)
       .nonempty()
-      .describe('Weekdays the class meets (e.g., ["MO","WE"])'),
-    startTime: IsoTime.describe('Start time for each occurrence'),
-    endTime: IsoTime.describe(
-      'End time for each occurrence (must be after startTime)',
-    ),
-    interval: z
-      .number()
-      .int()
-      .positive()
-      .default(1)
       .optional()
-      .describe('Weeks between occurrences (default 1)'),
-    until: IsoDate.optional().describe('Optional end date for recurrence'),
-  })
-  .describe('Simple weekly recurrence definition');
-
-const RecurrenceDaily = z
-  .object({
-    kind: z.literal('daily').describe('Daily recurrence'),
-    interval: z
-      .number()
-      .int()
-      .positive()
-      .default(1)
+      .describe('Applicable weekdays (for weekly rules)'),
+    byMonthday: z
+      .array(z.number().int().min(1).max(31))
       .optional()
-      .describe('Days between occurrences (default 1)'),
-    until: IsoDate.optional().describe('Optional end date for recurrence'),
-  })
-  .describe('Advanced recurrence: daily');
-
-const RecurrenceWeekly = z
-  .object({
-    kind: z.literal('weekly').describe('Weekly recurrence (advanced)'),
-    interval: z
-      .number()
-      .int()
-      .positive()
-      .default(1)
+      .describe('Applicable month days (for monthly rules)'),
+    byMonth: z
+      .array(z.number().int().min(1).max(12))
       .optional()
-      .describe('Weeks between occurrences (default 1)'),
-    byDays: z.array(Weekday).nonempty().describe('Weekdays the class meets'),
-    until: IsoDate.optional().describe('Optional end date for recurrence'),
-  })
-  .describe('Advanced recurrence: weekly');
-
-const RecurrenceMonthlyByDay = z
-  .object({
-    kind: z.literal('monthlyByDay').describe('Monthly by day-of-month'),
-    interval: z
-      .number()
-      .int()
-      .positive()
-      .default(1)
-      .optional()
-      .describe('Months between occurrences (default 1)'),
-    byMonthDay: z.number().int().min(1).max(31).describe('Day of month (1-31)'),
-    until: IsoDate.optional().describe('Optional end date for recurrence'),
-  })
-  .describe('Advanced recurrence: monthly by day-of-month');
-
-const RecurrenceMonthlyByWeekday = z
-  .object({
-    kind: z
-      .literal('monthlyByWeekday')
-      .describe('Monthly by position and weekday'),
-    interval: z
-      .number()
-      .int()
-      .positive()
-      .default(1)
-      .optional()
-      .describe('Months between occurrences (default 1)'),
-    position: WeekdayPosition.describe('Monthly position: 1, 2, 3, 4, or last'),
-    weekday: Weekday.describe('Target weekday for monthly recurrence'),
-    until: IsoDate.optional().describe('Optional end date for recurrence'),
-  })
-  .describe('Advanced recurrence: monthly by weekday position');
-
-const RecurrenceExplicitDates = z
-  .object({
-    kind: z.literal('xDays').describe('Explicit list of dates'),
-    dates: z.array(IsoDate).nonempty().describe('List of specific dates'),
-  })
-  .describe('Advanced recurrence: explicit date list');
-
-export const Recurrence = z
-  .discriminatedUnion('kind', [
-    RecurrenceSimpleWeekly,
-    RecurrenceDaily,
-    RecurrenceWeekly,
-    RecurrenceMonthlyByDay,
-    RecurrenceMonthlyByWeekday,
-    RecurrenceExplicitDates,
-  ])
-  .describe(
-    'Recurrence union: choose exactly one kind (simpleWeekly | daily | weekly | monthlyByDay | monthlyByWeekday | xDays)',
-  );
-export type Recurrence = z.infer<typeof Recurrence>;
-
-/**
- * Classroom (optional, attachable via locationDetails)
- */
-export const Classroom = z
-  .object({
-    id: z.string().optional().describe('Classroom ID (optional)'),
-    campus: z.string().optional().describe('Campus name (optional)'),
-    building: z.string().optional().describe('Building name (optional)'),
-    room: z.string().min(1).describe('Room identifier/number'),
-    capacity: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe('Seating capacity (optional)'),
-    features: z
-      .array(z.string())
-      .default([])
-      .describe('List of features/equipment'),
-    notes: z.string().optional().describe('Additional notes (optional)'),
-  })
-  .describe('Structured classroom/location details');
-export type Classroom = z.infer<typeof Classroom>;
-
-/**
- * Optional weekday-specific overrides
- */
-export const WeekdayOverride = z
-  .object({
-    weekday: Weekday.describe('Weekday this override applies to'),
-    startTime: IsoTime.optional().describe('Override start time (optional)'),
-    endTime: IsoTime.optional().describe('Override end time (optional)'),
-    location: z.string().optional().describe('Override location (optional)'),
-    description: z
-      .string()
-      .optional()
-      .describe('Override description (optional)'),
-  })
-  .describe(
-    'Per-weekday override for time and/or location; overrides base recurrence times',
-  );
-export type WeekdayOverride = z.infer<typeof WeekdayOverride>;
-
-/**
- * Per-class meeting definition
- * - "group" can be a single string or a non-empty string array.
- * - Preserve tokens exactly as in the timetable (e.g., "PE101", "TU101", "(1)").
- */
-export const ClassBlock = z
-  .object({
-    id: z.string().optional().describe('Class block ID (optional)'),
-    title: z.string().min(1).describe('Class title (full subject name)'),
-
-    group: z
-      .union([z.string().min(1), z.array(z.string().min(1)).nonempty()])
-      .optional()
-      .describe(
-        'Group/modality token(s) as shown, e.g., "PE101", "PA101", "(1)"; either a single string or a non-empty list',
-      ),
-
-    // Location: either simple string or structured details
-    location: z.string().optional().describe('Location string (optional)'),
-    locationDetails: Classroom.optional().describe(
-      'Structured location details (optional)',
-    ),
-
-    description: z.string().optional().describe('Class description (optional)'),
-
-    // Optional date bounds
-    startDate: IsoDate.optional().describe('Optional class start date'),
-    endDate: IsoDate.optional().describe('Optional class end date'),
-
-    // Unified recurrence
-    recurrence: Recurrence.describe(
-      'Recurrence rule for this class (choose one kind)',
-    ),
-
-    // Per-weekday overrides
-    weekdayOverrides: z
-      .array(WeekdayOverride)
-      .default([])
-      .describe('List of weekday-specific overrides'),
-
-    // Exceptions and overrides
-    skipDates: z
-      .array(IsoDate)
-      .default([])
-      .describe('Dates to skip (no meeting)'),
-    overrides: z
+      .describe('Applicable months (for yearly rules)'),
+    nthWeekdayOfMonth: z
       .array(
-        z
-          .object({
-            date: IsoDate.describe('Date of the override'),
-            startTime: IsoTime.optional().describe('Override start time'),
-            endTime: IsoTime.optional().describe('Override end time'),
-            location: z
-              .string()
-              .optional()
-              .describe('Override location (optional)'),
-            title: z.string().optional().describe('Override title (optional)'),
-            description: z
-              .string()
-              .optional()
-              .describe('Override description (optional)'),
-          })
-          .describe('Single-date override entry'),
+        z.object({
+          weekday: Weekday,
+          nth: z.union([
+            z.literal(1),
+            z.literal(2),
+            z.literal(3),
+            z.literal(4),
+            z.literal(-1), // last
+          ]),
+        }),
       )
-      .default([])
-      .describe('Date-specific overrides list'),
-
-    instructor: z.string().optional().describe('Instructor name (optional)'),
-    tags: z.array(z.string()).default([]).describe('Tags/labels for the class'),
+      .optional()
+      .describe('Nth weekday-of-month patterns'),
   })
-  .describe(
-    'Definition of a class and its recurrence/overrides; "group" distinguishes variants and may be a single token or list',
-  );
-export type ClassBlock = z.infer<typeof ClassBlock>;
+  .describe('Recurrence rule definition');
+
+export const OccurrenceOverride = z
+  .union([
+    z.object({ cancel: z.literal(true) }),
+    z.object({
+      start: IsoTime.optional(),
+      end: IsoTime.optional(),
+      title: z.string().optional(),
+      location: z.string().optional(),
+      description: z.string().optional(),
+      color: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+    }),
+  ])
+  .describe('Per-date override (or cancellation)');
 
 /**
- * A normalized event instance for exporting/preview
+ * Series registry (shared metadata + allowed variants)
  */
-export const EventInstance = z
+export const SeriesEntry = z
   .object({
-    classId: z.string().optional().describe('Originating class ID (optional)'),
-    title: z.string().describe('Event title'),
-    date: IsoDate.describe('Event date'),
-    startDateTimeLocal: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/, 'YYYY-MM-DDTHH:MM:00')
-      .describe('Local start datetime in YYYY-MM-DDTHH:MM:00'),
-    endDateTimeLocal: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/, 'YYYY-MM-DDTHH:MM:00')
-      .describe('Local end datetime in YYYY-MM-DDTHH:MM:00'),
-    location: z.string().optional().describe('Event location (optional)'),
-    description: z.string().optional().describe('Event description (optional)'),
+    title: z.string().min(1).describe('Base subject name'),
+    description: z.string().optional(),
+    color: z.string().optional(),
+    location: z.string().optional(),
+    tags: z.array(z.string()).default([]),
+    meta: z.record(z.string(), z.unknown()).optional(),
+    variants: z
+      .array(z.string().min(1))
+      .nonempty()
+      .describe('Allowed variant keys for this series (e.g., PE101, PA101)'),
   })
-  .describe('Normalized single event instance for export/preview');
-export type EventInstance = z.infer<typeof EventInstance>;
+  .describe('Shared series metadata and allowed variants');
+
+export const SeriesRegistry = z
+  .record(z.string(), SeriesEntry)
+  .describe(
+    'Series registry keyed by seriesId (stable slug); each value lists allowed variants',
+  );
+
+/**
+ * Variant info attached to events
+ */
+export const VariantInfo = z
+  .object({
+    key: z.string().min(1).describe('Variant key (must be in series.variants)'),
+    name: z.string().optional(),
+    audienceId: z.string().optional(),
+    capacity: z.number().int().positive().optional(),
+  })
+  .describe('Variant metadata bound to a series');
+
+/**
+ * Base item fields
+ */
+export const BaseItem = z.object({
+  id: z.string().optional().describe('Item ID (optional)'),
+  title: z.string().optional().describe('Optional display title override'),
+  description: z.string().optional(),
+  location: z.string().optional(),
+  color: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
+
+  // Variant binding (enforced via superRefine):
+  seriesId: z.string().optional(),
+  variant: VariantInfo.optional(),
+});
+
+/**
+ * Single event (absolute local datetimes)
+ */
+export const SingleEvent = BaseItem.extend({
+  kind: z.literal('single'),
+  start: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, 'YYYY-MM-DDTHH:MM:SS')
+    .describe('Local start datetime (no timezone offset)'),
+  end: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, 'YYYY-MM-DDTHH:MM:SS')
+    .describe('Local end datetime (no timezone offset)'),
+  allDay: z.boolean().optional(),
+}).describe('Single (non-recurring) event');
+
+/**
+ * Recurring event (weekly, etc.), local to schedule.timeZone
+ */
+export const RecurringEvent = BaseItem.extend({
+  kind: z.literal('recurring'),
+  on: RecurrenceRule.describe('Recurrence rule'),
+  startTime: IsoTime.describe('Local start time for each occurrence'),
+  endTime: IsoTime.describe('Local end time for each occurrence'),
+  startOn: IsoDate.optional().describe('First valid date (inclusive)'),
+  endOn: IsoDate.optional().describe('Last valid date (inclusive)'),
+  exclude: z.array(IsoDate).default([]).describe('Dates to cancel'),
+  overrides: z
+    .record(
+      z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
+        .describe('Date key in YYYY-MM-DD'),
+      OccurrenceOverride,
+    )
+    .optional()
+    .describe('Per-date overrides keyed by YYYY-MM-DD'),
+}).describe('Recurring event');
+
+/**
+ * Item union
+ */
+export const ScheduleItem = z
+  .discriminatedUnion('kind', [SingleEvent, RecurringEvent])
+  .describe('Schedule item (single or recurring)');
 
 /**
  * Overall schedule
  */
 export const Schedule = z
   .object({
+    id: z.string().optional().describe('Schedule ID (optional)'),
     timeZone: IanaTZ.describe('Schedule timezone (IANA)'),
     termStart: IsoDate.optional().describe('Optional term start date'),
     termEnd: IsoDate.optional().describe('Optional term end date'),
-    classes: z.array(ClassBlock).describe('List of class blocks'),
+    series: SeriesRegistry.default({}).describe('Series registry'),
+    items: z.array(ScheduleItem).describe('List of schedule items'),
+    meta: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.termStart && val.termEnd && val.termEnd < val.termStart) {
@@ -302,27 +212,81 @@ export const Schedule = z
       });
     }
 
-    for (const [i, c] of val.classes.entries()) {
-      if (c.recurrence.kind === 'simpleWeekly') {
-        const { startTime, endTime } = c.recurrence;
-        if (endTime <= startTime) {
+    // Validate items
+    for (const [i, item] of val.items.entries()) {
+      // series/variant pairing: both present or both absent
+      const hasSeries = !!item.seriesId;
+      const hasVariant = !!item.variant;
+      if (hasSeries !== hasVariant) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', i, hasSeries ? 'variant' : 'seriesId'],
+          message:
+            'If seriesId is provided, variant must be provided (and vice versa)',
+        });
+      }
+
+      // If bound, ensure seriesId exists and variant.key is allowed
+      if (hasSeries && hasVariant) {
+        const seriesEntry = val.series[item.seriesId as string];
+        if (!seriesEntry) {
           ctx.addIssue({
             code: 'custom',
-            path: ['classes', i, 'recurrence', 'endTime'],
-            message: 'endTime must be after startTime',
+            path: ['items', i, 'seriesId'],
+            message: `seriesId "${item.seriesId}" not found in schedule.series`,
+          });
+          // biome-ignore lint/suspicious/noExplicitAny: allowed for now
+        } else if (!seriesEntry.variants.includes((item.variant as any).key)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', i, 'variant', 'key'],
+            message:
+              'variant.key must be one of series[seriesId].variants for this series',
           });
         }
       }
 
-      if (c.startDate && c.endDate && c.endDate < c.startDate) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['classes', i, 'endDate'],
-          message: 'endDate must be on or after startDate',
-        });
+      // Per-item validations
+      if (item.kind === 'recurring') {
+        // Time window sanity: endTime > startTime (lexical compare on HH:MM:SS)
+        if (item.endTime <= item.startTime) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', i, 'endTime'],
+            message: 'endTime must be strictly after startTime',
+          });
+        }
+        // startOn <= endOn
+        if (item.startOn && item.endOn && item.endOn < item.startOn) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', i, 'endOn'],
+            message: 'endOn must be on or after startOn',
+          });
+        }
+        // Weekly rules should specify byWeekday
+        if (
+          item.on.freq === 'weekly' &&
+          (!item.on.byWeekday || item.on.byWeekday.length === 0)
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', i, 'on', 'byWeekday'],
+            message: 'Weekly recurrence must specify non-empty byWeekday',
+          });
+        }
+      } else if (item.kind === 'single') {
+        // end > start (lexical compare on full timestamp)
+        if (item.end <= item.start) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', i, 'end'],
+            message: 'end must be strictly after start',
+          });
+        }
       }
     }
   })
-  .describe('Overall schedule including timezone, term bounds, and classes');
+  .describe('Variant-aware schedule with series registry and items');
 
 export type Schedule = z.infer<typeof Schedule>;

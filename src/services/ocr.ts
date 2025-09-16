@@ -6,71 +6,97 @@ import { Schedule } from '~/schemas/schedule';
 import { AIProviders as AIProvider } from '~/services/ai';
 
 const SYSTEM_PROMPT = `
-You are an expert at parsing university timetables from unstructured text extracted from PDFs. Your task is to extract the entire schedule into a structured JSON object that strictly conforms to the provided Zod schema for "Schedule". Do not add extra fields or deviate from the schema. Output only the validated JSON object—no explanations, no additional text.
+You are an expert at parsing university timetables from unstructured PDF text.
+Extract the entire schedule into a structured JSON object that strictly
+conforms to the provided Zod schema "Schedule". Output only the validated JSON
+object—no explanations, no extra text.
 
 Schema reminders (must follow exactly):
 - Schedule.timeZone: IANA string.
-- Schedule.termStart/termEnd: YYYY-MM-DD.
-- Schedule.classes: array of ClassBlock.
-- ClassBlock.title: string (subject full Spanish name).
-- ClassBlock.group: optional; either a single string OR a non-empty list of strings. Preserve tokens exactly as printed, e.g., "PE101", "PA101", "TU101", "(1)". Use this to distinguish variants.
-- ClassBlock.recurrence: discriminated union. Choose exactly one:
-  - { "kind": "simpleWeekly", "byDays": [...], "startTime": "HH:MM:SS", "endTime": "HH:MM:SS", "interval"?: 1, "until"?: "YYYY-MM-DD" }
-  - { "kind": "weekly", "byDays": [...], "interval"?: 1, "until"?: "YYYY-MM-DD" }
-  - Other kinds exist but are not needed here (daily, monthlyByDay, monthlyByWeekday, xDays).
-- ClassBlock.weekdayOverrides: array to set weekday-specific time/location variations. Each item:
-  { "weekday": "MO"|"TU"|"WE"|"TH"|"FR"|"SA"|"SU", "startTime"?: "HH:MM:SS", "endTime"?: "HH:MM:SS", "location"?: string, "description"?: string }.
-- Dates must be YYYY-MM-DD; times must be HH:MM:SS (assume :00 seconds).
+- Schedule.termStart / Schedule.termEnd: YYYY-MM-DD.
+- Schedule.series: a registry of subjects (series), keyed by a stable slug.
+  Each entry:
+    {
+      "title": "<base subject name>",
+      "variants": ["<variantKey1>", "<variantKey2>", ...],
+      "tags"?: [...],
+      "description"?: string,
+      "location"?: string,
+      "color"?: string
+    }
+- Schedule.items: array of items. For PDF timetables use "recurring" items.
+  Each recurring item:
+    {
+      "kind": "recurring",
+      "seriesId": "<key in Schedule.series>",
+      "variant": { "key": "<one of series[seriesId].variants>" },
+      "on": { "freq": "weekly", "byWeekday": ["MO","WE"], "interval"?: 1 },
+      "startTime": "HH:MM:SS",
+      "endTime": "HH:MM:SS",
+      "startOn"?: "YYYY-MM-DD",
+      "endOn"?: "YYYY-MM-DD",
+      "exclude": [],
+      "overrides"?: { "YYYY-MM-DD": { ... } }
+    }
 
-Critical formatting rules:
-- Never repeat the title inside description. The description must not start with the subject name.
-- Always extract and populate group if codes like PE101, PA101, TU101, or "(1)" appear. Do not leave these codes only in description.
-- If a single timetable cell clearly lists multiple distinct group tokens for the same subject instance, set group as a list, e.g., ["PE101", "TU101"]. Otherwise, use a single string.
-- Preserve group tokens exactly as printed (no added spaces or normalization).
+Critical rules:
+- Build the "series" registry first:
+  - One series per distinct subject (base title).
+  - series key (seriesId) = a stable slug from the title:
+    - lower-case, ASCII only; remove diacritics; replace spaces with "-";
+      remove punctuation.
+    - Example: "Algoritmia y Estructuras de Datos" → "algoritmia-y-estructuras-de-datos".
+  - series[seriesId].title = the base subject name as printed (keep accents).
+  - series[seriesId].variants = list of all group tokens for that subject
+    (e.g., "PE101", "PA101", "TU101", "(1)"), preserved exactly as printed.
 
-Key guidelines for extraction:
-- timeZone: Use "Atlantic/Canary" (timezone for Universidad de La Laguna in Tenerife, Spain).
-- termStart and termEnd: First semester (primer cuatrimestre) of the 2025-2026 academic year.
+- Variant binding:
+  - Every class entry in items must include both seriesId and variant.
+  - variant.key must be exactly one of series[seriesId].variants.
+
+- Variant separation rule (important):
+  - If a timetable cell shows multiple group tokens tied to the same
+    time slot (e.g., "PE101" and "TU101"), create one recurring item per token
+    (duplicate the slot), not a combined variant array.
+  - Different time windows for the same subject/variant on different weekdays
+    must be split into separate recurring items, each with a uniform time window
+    and its own "byWeekday" subset.
+
+- Recurrence modeling (weekly schedules):
+  - Use: { "on": { "freq": "weekly", "byWeekday": [...] } }.
+  - Always include "byWeekday" for weekly recurrences.
+  - Use "interval": 1 (omit if not shown).
+  - Set "startOn" = termStart and "endOn" = termEnd unless explicit different
+    bounds are printed.
+
+- Times and dates:
+  - Times must be HH:MM:SS (assume :00 seconds if not printed).
+  - Dates must be YYYY-MM-DD (local).
+  - The schedule is local to Schedule.timeZone.
+
+- Location handling:
+  - If the same location applies to all listed weekdays for an item, set it on
+    the item.
+  - If locations differ by weekday, split into multiple items (one per distinct
+    time+location set).
+
+- Tags (optional but recommended):
+  - Add ["theory"] for "(1)" or "PA" codes.
+  - Add ["practice"] for "PE" or "TU" codes.
+  - Optionally add ["fourth year", "first semester"].
+
+- Do not include fields not defined by the schema.
+- Do not repeat the title inside description. The description must not start
+  with the subject name.
+- Preserve group tokens exactly as printed in variant.key and in the series
+  variants list.
+
+Guidelines for this dataset:
+- timeZone: "Atlantic/Canary" (Universidad de La Laguna, Tenerife).
+- Term window (Cuarto curso - Primer cuatrimestre - 2025-2026):
   - termStart: "2025-09-09"
   - termEnd: "2025-12-19"
-  - Ignore second semester.
-
-- classes: Create one ClassBlock per subject variant, where variants are distinguished by the "group" field.
-  - Variant separation rule (critical):
-    - Entries like "Algoritmia PE101 (8h)", "Algoritmia PA101", "Algoritmia PE105" are separate ClassBlocks.
-    - title: base subject name only (e.g., "ALGORITMIA").
-    - group: the exact group token(s) present for that entry, e.g., "PE101", "PA101", "(1)". If both "PE101" and "TU101" are clearly tied to the same instance, use ["PE101", "TU101"].
-    - description: include auxiliary notes like "(8h)" or other brief clarifications. Do not include the subject title here.
-
-  - Recurrence modeling:
-    - Same time on all listed days → use:
-      { "recurrence": { "kind": "simpleWeekly", "byDays": [...], "startTime": "HH:MM:SS", "endTime": "HH:MM:SS" } }
-    - Different times by weekday → use:
-      { "recurrence": { "kind": "weekly", "byDays": [...] }, "weekdayOverrides": [ { "weekday": "...", "startTime": "...", "endTime": "..." }, ... ] }
-    - Use interval: 1 and omit "until" (term bounds apply).
-
-  - location: Parse room names (e.g., "Aula 1.1", "CajaCanarias - P1", "Sala 2.4"). If multiple rooms are listed across different weekdays for the same variant, set the most common one in "location" and specify others via weekdayOverrides.location. If no dominant room exists, leave "location" undefined and set per-override locations.
-
-  - instructor: Not provided—leave undefined.
-
-  - tags: Add relevant tags such as:
-    - ["theory"] for "(1)", PA codes
-    - ["practice"] for PE or TU codes
-    - and optionally ["fourth year", "first semester"].
-
-  - startDate and endDate: Leave undefined (term boundaries govern).
-  - skipDates and overrides: Do not create any unless explicitly date-specific (none here).
-
-Handling ambiguities:
-- Overlapping slots across different subject variants belong to separate ClassBlocks.
-- Durational hints like "(8h)" or "(14h)" go in description; prioritize explicit weekday/time slots.
-- This schedule is for: "Cuarto curso - Primer cuatrimestre - Computación - Grupo 1".
-
-Validation rules to respect:
-- Weekdays must be one of: MO, TU, WE, TH, FR (weekend usually not used).
-- Times must be local and formatted as HH:MM:SS (e.g., "09:00:00", "09:55:00").
-- For simpleWeekly, endTime must be strictly after startTime.
-- Use only fields defined by the schema; do not invent fields like "weekdaySchedule".
+- Only include first semester content.
 
 Output:
 - Produce ONLY the JSON object that validates against the schema.

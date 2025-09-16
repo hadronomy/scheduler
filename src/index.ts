@@ -3,7 +3,7 @@ import { FileSystem } from '@effect/platform';
 import { BunContext } from '@effect/platform-bun';
 import { Cause, Effect, Exit, Logger } from 'effect';
 
-import { AppConfig, ConfigLive } from '~/config';
+import { AppConfig } from '~/config';
 import { AIProviders } from '~/services/ai';
 import { ScheduleOCR } from '~/services/ocr';
 
@@ -13,11 +13,14 @@ const program = Effect.gen(function* () {
   const buffer = yield* fs.readFile(
     '/Users/hadronomy/Downloads/G026_HOR_2025-2026-1C-4-1.pdf',
   );
-  const response = yield* ocr.extractFromBytes(buffer, 'application/pdf');
-  yield* Effect.log(response.object);
+  const { object: schedule } = yield* ocr.extractFromBytes(
+    buffer,
+    'application/pdf',
+  );
+  yield* Effect.log(schedule);
   yield* Effect.log(
-    'Number of distinct classes by group and name',
-    response.object.classes.length,
+    'Number of distinct classes',
+    Object.keys(schedule.series).length,
   );
 });
 
@@ -33,7 +36,7 @@ cli(process.argv)
     Effect.provide(ScheduleOCR.Default),
     Effect.provide(AIProviders.Default),
     Effect.provide(BunContext.layer),
-    Effect.provide(ConfigLive),
+    Effect.provide(AppConfig.layer),
     Effect.provide(Logger.pretty),
     Effect.runPromiseExit,
   )
