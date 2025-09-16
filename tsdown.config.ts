@@ -10,4 +10,7 @@ export default defineConfig({
   banner: {
     js: '#!/usr/bin/env bun run',
   },
+  exports: {
+    devExports: true,
+  },
 });

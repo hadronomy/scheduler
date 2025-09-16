@@ -1,6 +1,6 @@
 {
   "name": "scheduler",
-  "module": "index.ts",
+  "module": "./dist/index.js",
   "type": "module",
   "private": true,
   "bin": {
@@ -25,5 +25,16 @@
     "tsdown": "^0.15.0",
     "undici": "^7.15.0",
     "zod": "^4.1.5"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.js",
+      "./package.json": "./package.json"
+    }
   }
 }
