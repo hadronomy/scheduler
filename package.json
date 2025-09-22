@@ -6,6 +6,9 @@
   "bin": {
     "scheduler": "./dist/index.js"
   },
+  "scripts": {
+    "dev": "tsdown --watch"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.2.3",
     "@types/bun": "latest"
@@ -21,7 +24,9 @@
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "ai": "^5.0.39",
     "effect": "^3.17.13",
+    "google-auth-library": "^10.3.0",
     "moment-timezone": "^0.6.0",
+    "open": "^10.2.0",
     "tsdown": "^0.15.0",
     "undici": "^7.15.0",
     "zod": "^4.1.5"
